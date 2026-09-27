@@ -3,11 +3,21 @@ import { imageUrl, backdropUrl, profileUrl } from '@/lib/tmdb-config';
 import type { TmdbMovie, TmdbTv, TmdbCastMember, TmdbVideo, TmdbReview } from '@/lib/tmdb-types';
 import { navigate } from '@/lib/router';
 import { getYouTubeThumbnail } from '@/lib/providers';
+import { useState } from 'react';
 
-// Poster card for movie/TV grid
-export function PosterCard({ item, mediaType }: { item: TmdbMovie | TmdbTv; mediaType: 'movie' | 'tv' }) {
-  const title = mediaType === 'movie' ? (item as TmdbMovie).title : (item as TmdbTv).name;
-  const date = mediaType === 'movie' ? (item as TmdbMovie).release_date : (item as TmdbTv).first_air_date;
+type MediaItem = TmdbMovie | TmdbTv;
+
+function getTitle(item: MediaItem): string {
+  return 'title' in item ? (item as TmdbMovie).title : (item as TmdbTv).name;
+}
+
+function getDate(item: MediaItem): string {
+  return 'release_date' in item ? (item as TmdbMovie).release_date : (item as TmdbTv).first_air_date;
+}
+
+export function PosterCard({ item, mediaType }: { item: MediaItem; mediaType: 'movie' | 'tv' }) {
+  const title = getTitle(item);
+  const date = getDate(item);
   const year = date ? date.slice(0, 4) : '';
 
   return (
@@ -31,13 +41,27 @@ export function PosterCard({ item, mediaType }: { item: TmdbMovie | TmdbTv; medi
   );
 }
 
-// Horizontal scrolling row of posters
-export function PosterRow({ title, items, mediaType }: { title: string; items: (TmdbMovie | TmdbTv)[]; mediaType: 'movie' | 'tv' }) {
+export function PosterRow({
+  title,
+  items,
+  mediaType,
+  onViewAll,
+}: {
+  title: string;
+  items: MediaItem[];
+  mediaType: 'movie' | 'tv';
+  onViewAll?: () => void;
+}) {
   if (!items || items.length === 0) return null;
   return (
     <section className="content-section">
       <div className="section-heading">
         <h2>{title}</h2>
+        {onViewAll && (
+          <button onClick={onViewAll} className="text-xs font-semibold text-[#f52432] hover:text-[#ff3340]">
+            View Full List →
+          </button>
+        )}
       </div>
       <div className="poster-row">
         {items.map((item) => (
@@ -48,7 +72,88 @@ export function PosterRow({ title, items, mediaType }: { title: string; items: (
   );
 }
 
-// Cast card
+export function RankedPosterRow({
+  title,
+  items,
+  mediaType,
+}: {
+  title: string;
+  items: MediaItem[];
+  mediaType: 'movie' | 'tv';
+}) {
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="content-section">
+      <div className="section-heading">
+        <h2>{title}</h2>
+      </div>
+      <div className="poster-row">
+        {items.map((item, idx) => (
+          <div key={item.id} className="relative flex-shrink-0">
+            <span className="absolute -left-1 -top-2 z-10 text-5xl font-black text-white/15 drop-shadow-lg sm:text-6xl"
+              style={{ textShadow: '0 0 8px rgba(0,0,0,0.8)' }}>
+              {idx + 1}
+            </span>
+            <PosterCard item={item} mediaType={mediaType} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function ContinueWatchingRow({
+  items,
+  onPlay,
+}: {
+  items: { tmdb_id: number; media_type: 'movie' | 'tv'; title: string; poster_path: string | null; backdrop_path: string | null; season_number: number | null; episode_number: number | null; position: number; duration: number | null }[];
+  onPlay: (tmdbId: number, mediaType: 'movie' | 'tv') => void;
+}) {
+  if (!items || items.length === 0) return null;
+  return (
+    <section className="content-section">
+      <div className="section-heading">
+        <h2>Continue Watching</h2>
+      </div>
+      <div className="poster-row">
+        {items.map((item) => {
+          const progress = item.duration && item.duration > 0 ? (item.position / item.duration) * 100 : 0;
+          return (
+            <button
+              key={`${item.tmdb_id}-${item.media_type}`}
+              onClick={() => onPlay(item.tmdb_id, item.media_type)}
+              className="poster-card group relative"
+            >
+              {item.backdrop_path ? (
+                <img src={backdropUrl(item.backdrop_path, 'w300')} alt={item.title} className="aspect-video w-full object-cover" />
+              ) : item.poster_path ? (
+                <img src={imageUrl(item.poster_path, 'w342')} alt={item.title} />
+              ) : (
+                <div className="grid aspect-[2/3] place-items-center bg-white/5 text-xs text-slate-600">No Image</div>
+              )}
+              <span className="poster-shade" />
+              <span className="poster-name">{item.title}</span>
+              {item.season_number != null && item.episode_number != null && (
+                <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                  S{item.season_number} E{item.episode_number}
+                </span>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                <div className="h-full bg-[#f52432]" style={{ width: `${Math.min(progress, 100)}%` }} />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                <div className="grid h-12 w-12 place-items-center rounded-full bg-[#f52432]/90">
+                  <Play size={20} fill="white" className="text-white" />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function CastCard({ member, onClick }: { member: TmdbCastMember; onClick: () => void }) {
   return (
     <button onClick={onClick} className="group text-left">
@@ -71,7 +176,6 @@ export function CastCard({ member, onClick }: { member: TmdbCastMember; onClick:
   );
 }
 
-// Video card
 export function VideoCard({ video, onClick }: { video: TmdbVideo; onClick: () => void }) {
   return (
     <button onClick={onClick} className="group relative aspect-video overflow-hidden rounded-lg bg-white/5">
@@ -96,7 +200,6 @@ export function VideoCard({ video, onClick }: { video: TmdbVideo; onClick: () =>
   );
 }
 
-// Review card
 export function ReviewCard({ review }: { review: TmdbReview }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = review.content.length > 300;
@@ -130,10 +233,6 @@ export function ReviewCard({ review }: { review: TmdbReview }) {
   );
 }
 
-// Need useState for ReviewCard
-import { useState } from 'react';
-
-// Skeleton loaders
 export function SkeletonRow({ count = 6 }: { count?: number }) {
   return (
     <div className="content-section">

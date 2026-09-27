@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase, type WatchHistoryEntry, type WatchlistEntry } from './supabase';
+import { supabase, type WatchHistoryEntry, type WatchlistEntry, type Comment } from './supabase';
 import { useAuth } from './auth';
 
 export function useWatchHistory() {
@@ -136,4 +136,68 @@ export function useWatchlist() {
   );
 
   return { watchlist, loading, isInWatchlist, toggleWatchlist, refetch: fetchWatchlist };
+}
+
+export function useComments(tmdbId: number, mediaType: 'movie' | 'tv') {
+  const { user } = useAuth();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchComments = useCallback(async () => {
+    const { data } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('tmdb_id', tmdbId)
+      .eq('media_type', mediaType)
+      .order('created_at', { ascending: false });
+    setComments((data as Comment[]) ?? []);
+    setLoading(false);
+  }, [tmdbId, mediaType]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
+
+  const addComment = useCallback(
+    async (content: string, isSpoiler: boolean, parentId: string | null) => {
+      if (!user) return;
+      await supabase.from('comments').insert({
+        user_id: user.id,
+        tmdb_id: tmdbId,
+        media_type: mediaType,
+        content,
+        is_spoiler: isSpoiler,
+        parent_id: parentId,
+      });
+      fetchComments();
+    },
+    [user, tmdbId, mediaType, fetchComments],
+  );
+
+  const deleteComment = useCallback(
+    async (id: string) => {
+      if (!user) return;
+      await supabase.from('comments').delete().eq('id', id).eq('user_id', user.id);
+      fetchComments();
+    },
+    [user, fetchComments],
+  );
+
+  const likeComment = useCallback(
+    async (id: string, currentLikes: number) => {
+      await supabase.from('comments').update({ likes: currentLikes + 1 }).eq('id', id);
+      fetchComments();
+    },
+    [fetchComments],
+  );
+
+  const reportComment = useCallback(
+    async (id: string) => {
+      await supabase.from('comments').update({ is_reported: true }).eq('id', id);
+      fetchComments();
+    },
+    [fetchComments],
+  );
+
+  return { comments, loading, addComment, deleteComment, likeComment, reportComment, refetch: fetchComments };
 }

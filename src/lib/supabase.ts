@@ -44,3 +44,16 @@ export type WatchlistEntry = {
   backdrop_path: string | null;
   created_at: string;
 };
+
+export type Comment = {
+  id: string;
+  user_id: string;
+  tmdb_id: number;
+  media_type: 'movie' | 'tv';
+  content: string;
+  is_spoiler: boolean;
+  parent_id: string | null;
+  likes: number;
+  is_reported: boolean;
+  created_at: string;
+};
